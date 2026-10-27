@@ -6588,3 +6588,7 @@ CONFIG_P54_USB=y
 CONFIG_USB_CONFIGFS_F_HID=y
 # Mass-storage gadget  -- DriveDroid / USB-CD-ROM emulation
 CONFIG_USB_CONFIGFS_MASS_STORAGE=y
+
+# --- Drop built-in NPU firmware blob (not shipped in OSRC source; the
+#     NPU driver loads it from /vendor/firmware at runtime instead) ------
+CONFIG_EXTRA_FIRMWARE=""

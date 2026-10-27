@@ -51,31 +51,54 @@ the `mac80211` stack, which the stock kernel ships disabled:
 
 ## Building
 
-A cross toolchain is required (this source is built with Clang/LLVM +
-aarch64 GNU binutils). Proton Clang works well:
+A cross toolchain is required. This was built and verified with
+**Proton Clang 13.0.0** (LLVM) plus its bundled aarch64/arm GNU binutils,
+on an Ubuntu 24.04 (glibc 2.39) host:
 
 ```bash
 git clone --depth=1 https://github.com/kdrag0n/proton-clang.git ~/proton-clang
-export TC=~/proton-clang
-./build_nethunter.sh        # see the script; edit TC if needed
+sudo apt-get install -y flex bison bc libssl-dev libelf-dev build-essential
+cd Galaxy-a51-5g-NetHunter
+TC=~/proton-clang ./build_nethunter.sh
 ```
 
-Or directly:
+Output: `arch/arm64/boot/Image` (~33 MB) and
+`arch/arm64/boot/dts/exynos/exynos9630.dtb`.
 
-```bash
-export PATH="$TC/bin:$PATH" ARCH=arm64 PLATFORM_VERSION=13 ANDROID_MAJOR_VERSION=t
-make ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm \
-     OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
-     CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- \
-     CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-     exynos980-a51x_nethunter_defconfig
-make ARCH=arm64 CC=clang LD=ld.lld ... -j"$(nproc)" Image dtbs
-```
+The build script documents the exact `make` flags. The non-obvious ones,
+all needed because Proton Clang 13 is much newer than the clang this 4.19
+tree was written for:
 
-Output: `arch/arm64/boot/Image`.
+- **Host tools with the system GCC** (`HOSTCC=gcc`) so `fixdep` links
+  against the RELR-capable system `ld` (Proton's old GNU `ld` can't read
+  glibc 2.39's `.relr.dyn`).
+- **`as`/`ld` symlinks** in the toolchain pointing at the aarch64 binutils
+  (clang's `--prefix` otherwise picks the x86 `as`/`ld`, which reject
+  `-EL` / `aarch64linux`).
+- **`LD=aarch64-linux-gnu-ld`** for the final link: Proton's `ld.lld` 13
+  refuses the backward location-counter move Samsung's RKP `.rkp_ro`
+  section needs; GNU ld handles it.
+- **`KCFLAGS=-Wno-error`** (Samsung hard-codes bare `-Werror`) and
+  **`HOSTCFLAGS=-fcommon`** (4.19 `dtc` vs modern GCC `-fno-common`).
 
-> Note: the OSRC script dump lost the executable bit on the `scripts/*.sh`
-> helpers; this commit restores it so `make` can run them.
+### OSRC source fixes carried in this branch
+
+Samsung's OSRC tarball is incomplete; the build needs these, all included:
+
+- Executable bit restored on `scripts/**/*.sh`, `*.py`, `*.pl` and
+  `arch/arm64/kernel/vdso/gen_vdso_offsets.sh` (the dump stripped them,
+  which silently produced an empty `vdso-offsets.h`).
+- Re-created missing uapi netfilter headers: `xt_mark.h`, `xt_dscp.h`,
+  `xt_rateest.h`, `ipt_ttl.h`, `ip6t_hl.h` (canonical mainline content).
+- Relocated two camera headers to their canonical include paths:
+  `dt-bindings/camera/exynos_is_dt.h` and `linux/videodev2_exynos_camera.h`.
+- `firmware/Makefile`: `fwdir` falls back to `firmware/` so the touchscreen
+  blob (`tsp_melfas/mss100_a51x.fw`) auto-generates from its shipped
+  `.ihex`; the `sensorhub` blobs (no source in the OSRC) are dropped from
+  the built-in list and load from `/vendor/firmware` at runtime. The NPU
+  blob is likewise not built in (`CONFIG_EXTRA_FIRMWARE=""`).
+- `lib/string.c`: added `stpcpy()` (newer clang lowers some `strcpy()`
+  uses to `stpcpy`, which 4.19 otherwise lacks → link error).
 
 ## Packaging & flashing (done off-device, outside this repo)
 

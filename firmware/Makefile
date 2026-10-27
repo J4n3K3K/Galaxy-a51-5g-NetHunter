@@ -6,6 +6,11 @@
 # Create $(fwabs) from $(CONFIG_EXTRA_FIRMWARE_DIR) -- if it doesn't have a
 # leading /, it's relative to $(srctree).
 fwdir := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE_DIR))
+# [NetHunter] fall back to in-tree firmware/ when EXTRA_FIRMWARE_DIR is empty
+# (it is dropped by Kconfig once CONFIG_EXTRA_FIRMWARE is ""), so the remaining
+# fw-external device blobs (e.g. tsp_melfas) still resolve and auto-generate
+# from their shipped .ihex sources.
+fwdir := $(if $(fwdir),$(fwdir),firmware)
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
 fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
@@ -14,10 +19,10 @@ fw-external-$(CONFIG_TOUCHSCREEN_SEC_TS_Y771) += tsp_sec/y771_a71x.bin tsp_sec/y
 fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += tsp_melfas/mss100_a51x.fw
 
 # sensorhub
-fw-external-$(CONFIG_SENSORS_SSP) += sensorhub/shub_neus_bl.bin
-fw-external-$(CONFIG_SENSORS_SSP_A71X) += sensorhub/shub_neus_a71x.bin
-fw-external-$(CONFIG_SENSORS_SSP_A51X) += sensorhub/shub_neus_a51x.bin
-fw-external-$(CONFIG_SENSORS_SSP_A41SX) += sensorhub/shub_neus_a41sx.bin
+# [NetHunter] no OSRC blob; loaded from /vendor at runtime: fw-external-$(CONFIG_SENSORS_SSP) += sensorhub/shub_neus_bl.bin
+# [NetHunter] no OSRC blob; loaded from /vendor at runtime: fw-external-$(CONFIG_SENSORS_SSP_A71X) += sensorhub/shub_neus_a71x.bin
+# [NetHunter] no OSRC blob; loaded from /vendor at runtime: fw-external-$(CONFIG_SENSORS_SSP_A51X) += sensorhub/shub_neus_a51x.bin
+# [NetHunter] no OSRC blob; loaded from /vendor at runtime: fw-external-$(CONFIG_SENSORS_SSP_A41SX) += sensorhub/shub_neus_a41sx.bin
 
 fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tlbin
 
