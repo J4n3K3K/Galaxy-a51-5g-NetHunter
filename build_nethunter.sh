@@ -17,6 +17,11 @@ set -e
 TC="${TC:-$HOME/proton-clang}"
 [ -x "$TC/bin/clang" ] || { echo "ERROR: clang not found in $TC/bin"; exit 1; }
 
+# Which defconfig to build. Default = stock-faithful (RKP on).
+# Root variant (RKP/KDP/DEFEX off):
+#   DEFCONFIG=exynos980-a51x_nethunter_root_defconfig ./build_nethunter.sh
+DEFCONFIG="${DEFCONFIG:-exynos980-a51x_nethunter_defconfig}"
+
 # ---------------------------------------------------------------------
 # Why the two symlinks below:
 # Clang is driven with --prefix=<toolchain>/bin/, so with -no-integrated-as
@@ -56,7 +61,8 @@ MAKE_ARGS=(
   HOSTCFLAGS=-fcommon
 )
 
-make "${MAKE_ARGS[@]}" exynos980-a51x_nethunter_defconfig
+echo ">> Building $DEFCONFIG"
+make "${MAKE_ARGS[@]}" "$DEFCONFIG"
 make "${MAKE_ARGS[@]}" -j"$(nproc)" Image dtbs
 
 echo

@@ -9,8 +9,20 @@ Target firmware this was prepared against (from the device screenshot):
 
 ## What was added
 
-A new defconfig `arch/arm64/configs/exynos980-a51x_nethunter_defconfig`
-= the stock `exynos980-a51x_defconfig` plus the NetHunter options below.
+Two defconfigs are provided:
+
+| defconfig | RKP/KDP/DEFEX | Use |
+|-----------|---------------|-----|
+| `exynos980-a51x_nethunter_defconfig` | **on** (stock) | stock-faithful; boots like stock but Magisk/`su` is likely blocked |
+| `exynos980-a51x_nethunter_root_defconfig` | **off** | for Magisk root on an unlocked bootloader |
+
+Both = the stock `exynos980-a51x_defconfig` plus the NetHunter options
+below; the `_root_` one additionally disables Samsung's kernel
+self-protection (`UH`/`UH_RKP`, `KDP_CRED`/`KDP_NS`/`KDP_DMAP`,
+`UH_LKM_BLOCK`, `SECURITY_DEFEX`) so root can change process credentials.
+`PROCA`, `FIVE` and `UHID` stay enabled in both. The config was verified
+1:1 against the device's own `/proc/config.gz` (A516BXXS9FXE3) — the only
+deltas are these intentional NetHunter/root changes.
 
 ### 802.11 soft-MAC stack (for external injection adapters)
 The internal Samsung/SLSI Wi-Fi chip does **not** support monitor mode or
@@ -59,7 +71,9 @@ on an Ubuntu 24.04 (glibc 2.39) host:
 git clone --depth=1 https://github.com/kdrag0n/proton-clang.git ~/proton-clang
 sudo apt-get install -y flex bison bc libssl-dev libelf-dev build-essential
 cd Galaxy-a51-5g-NetHunter
-TC=~/proton-clang ./build_nethunter.sh
+TC=~/proton-clang ./build_nethunter.sh                 # stock-RKP variant
+# root variant (RKP/KDP/DEFEX off):
+TC=~/proton-clang DEFCONFIG=exynos980-a51x_nethunter_root_defconfig ./build_nethunter.sh
 ```
 
 Output: `arch/arm64/boot/Image` (~33 MB) and
@@ -109,6 +123,8 @@ Samsung's OSRC tarball is incomplete; the build needs these, all included:
 3. Install the Kali NetHunter app + chroot on top.
 
 **Prerequisites on the device:** unlocked bootloader (OEM unlocking),
-which trips the Knox e-fuse (0x1), and root (Magisk). This kernel keeps
-Samsung's RKP/KDP/DEFEX/PROCA/FIVE as-is; if you hit boot/root issues you
-may additionally need to disable those in the defconfig.
+which trips the Knox e-fuse (0x1), and root (Magisk). For working Magisk
+root use the **`_root_` variant** (RKP/KDP/DEFEX off) — the stock-RKP
+variant will boot but `su` is likely blocked by `KDP_CRED`/`DEFEX`. Keep
+the stock-RKP build as a fallback in case the RKP-off kernel misbehaves on
+your firmware.
