@@ -6595,15 +6595,15 @@ CONFIG_USB_CONFIGFS_MASS_STORAGE=y
 CONFIG_EXTRA_FIRMWARE=""
 
 # =====================================================================
-# Root (Magisk) variant  --  disable Samsung RKP/KDP/DEFEX
-# These actively block credential changes to root and privilege
-# escalation, so Magisk/su cannot work with them on. UH_LKM_BLOCK also
-# blocks loadable modules. PROCA/FIVE are left enabled (they do not
-# block root and keep the kernel closer to stock).
+# Root (Magisk) variant v2 -- Exynos-safe
+# Keep UH + UH_RKP enabled so the bootloader's EL2 micro-hypervisor
+# handoff succeeds and the kernel boots. Disable ONLY the Kernel Data
+# Protection for creds/namespace (what blocks changing creds to root),
+# plus DEFEX and the LKM block.
 # =====================================================================
-# CONFIG_UH is not set
-# CONFIG_UH_RKP is not set
-# CONFIG_UH_RKP_FIMC_CHECK is not set
+CONFIG_UH=y
+CONFIG_UH_RKP=y
+CONFIG_UH_RKP_FIMC_CHECK=y
 # CONFIG_KDP_CRED is not set
 # CONFIG_KDP_NS is not set
 # CONFIG_KDP_DMAP is not set

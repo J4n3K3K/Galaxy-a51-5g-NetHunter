@@ -11,18 +11,21 @@ Target firmware this was prepared against (from the device screenshot):
 
 Two defconfigs are provided:
 
-| defconfig | RKP/KDP/DEFEX | Use |
-|-----------|---------------|-----|
-| `exynos980-a51x_nethunter_defconfig` | **on** (stock) | stock-faithful; boots like stock but Magisk/`su` is likely blocked |
-| `exynos980-a51x_nethunter_root_defconfig` | **off** | for Magisk root on an unlocked bootloader |
+| defconfig | self-protection | Use |
+|-----------|-----------------|-----|
+| `exynos980-a51x_nethunter_defconfig` | stock (RKP+KDP+DEFEX on) | stock-faithful; boots like stock but Magisk/`su` is likely blocked |
+| `exynos980-a51x_nethunter_root_defconfig` | RKP **on**, KDP+DEFEX **off** | for Magisk root on an unlocked bootloader |
 
-Both = the stock `exynos980-a51x_defconfig` plus the NetHunter options
-below; the `_root_` one additionally disables Samsung's kernel
-self-protection (`UH`/`UH_RKP`, `KDP_CRED`/`KDP_NS`/`KDP_DMAP`,
-`UH_LKM_BLOCK`, `SECURITY_DEFEX`) so root can change process credentials.
-`PROCA`, `FIVE` and `UHID` stay enabled in both. The config was verified
-1:1 against the device's own `/proc/config.gz` (A516BXXS9FXE3) — the only
-deltas are these intentional NetHunter/root changes.
+Both = the stock `exynos980-a51x_defconfig` plus the NetHunter options below.
+
+The `_root_` variant **keeps `UH`/`UH_RKP` enabled** — on this Exynos SoC
+the bootloader hands off to an EL2 micro-hypervisor and the kernel must do
+the RKP handoff or it panics before console (a kernel with `UH` fully
+disabled does **not** boot here). It disables only what actually blocks
+root: `KDP_CRED`/`KDP_NS`/`KDP_DMAP` (hypervisor-enforced credential
+protection), `SECURITY_DEFEX` and `UH_LKM_BLOCK`. `PROCA`, `FIVE` and
+`UHID` stay enabled in both. The base config was verified 1:1 against the
+device's own `/proc/config.gz` (A516BXXS9FXE3).
 
 ### 802.11 soft-MAC stack (for external injection adapters)
 The internal Samsung/SLSI Wi-Fi chip does **not** support monitor mode or
@@ -124,7 +127,10 @@ Samsung's OSRC tarball is incomplete; the build needs these, all included:
 
 **Prerequisites on the device:** unlocked bootloader (OEM unlocking),
 which trips the Knox e-fuse (0x1), and root (Magisk). For working Magisk
-root use the **`_root_` variant** (RKP/KDP/DEFEX off) — the stock-RKP
+root use the **`_root_` variant** (RKP on, KDP+DEFEX off) — the stock-RKP
 variant will boot but `su` is likely blocked by `KDP_CRED`/`DEFEX`. Keep
-the stock-RKP build as a fallback in case the RKP-off kernel misbehaves on
-your firmware.
+the stock-RKP build as a fallback.
+
+> Note: an earlier revision of the root variant disabled `UH`/`UH_RKP`
+> entirely and did **not** boot on this Exynos SoC (broken EL2
+> hypervisor handoff). The working recipe keeps RKP on and only drops KDP.
