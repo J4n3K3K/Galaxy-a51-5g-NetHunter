@@ -59,6 +59,11 @@ MAKE_ARGS=(
   # build under modern GCC's -fno-common default.
   KCFLAGS=-Wno-error
   HOSTCFLAGS=-fcommon
+  # Set (empty) so scripts/setlocalversion does not append a "+" when
+  # building from a git tree. UTS_RELEASE then comes purely from
+  # CONFIG_LOCALVERSION -> a stable "4.19.87-NetHunter-J4n3K" vermagic,
+  # identical whether built from git or a tarball.
+  LOCALVERSION=
 )
 
 echo ">> Building $DEFCONFIG"
