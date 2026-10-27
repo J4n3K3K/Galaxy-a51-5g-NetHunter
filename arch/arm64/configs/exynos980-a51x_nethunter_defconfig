@@ -6530,7 +6530,8 @@ CONFIG_DEBUG_SNAPSHOT_CALLSTACK=4
 # =====================================================================
 
 # --- Build identity -------------------------------------------------
-CONFIG_LOCALVERSION="-NetHunter"
+CONFIG_LOCALVERSION="-NetHunter-J4n3K"
+# CONFIG_LOCALVERSION_AUTO is not set
 
 # --- 802.11 soft-MAC stack (needed for external injection adapters) --
 CONFIG_MAC80211=y
