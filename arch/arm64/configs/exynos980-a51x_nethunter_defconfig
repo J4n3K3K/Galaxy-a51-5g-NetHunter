@@ -6574,3 +6574,10 @@ CONFIG_USB_CONFIGFS_MASS_STORAGE=y
 
 # --- Drop built-in device firmware blobs not shipped in the OSRC ----
 CONFIG_EXTRA_FIRMWARE=""
+
+# --- zram LZ4 compression (alongside stock LZO) --------------------
+CONFIG_CRYPTO_LZ4=y
+CONFIG_CRYPTO_LZ4HC=y
+CONFIG_LZ4_COMPRESS=y
+CONFIG_LZ4HC_COMPRESS=y
+CONFIG_LZ4_DECOMPRESS=y
