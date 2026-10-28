@@ -22,6 +22,7 @@ extern void *memdup_user_nul(const void __user *, size_t);
 #ifndef __HAVE_ARCH_STRCPY
 extern char * strcpy(char *,const char *);
 #endif
+extern char *stpcpy(char *__restrict__, const char *__restrict__);
 #ifndef __HAVE_ARCH_STRNCPY
 extern char * strncpy(char *,const char *, __kernel_size_t);
 #endif
