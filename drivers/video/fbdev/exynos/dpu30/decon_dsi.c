@@ -400,6 +400,34 @@ static ssize_t decon_show_vsync(struct device *dev,
 }
 static DEVICE_ATTR(vsync, S_IRUGO, decon_show_vsync, NULL);
 
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+bool decon_fbcon_needs_pan;
+
+/*
+ * Without HWC nobody triggers frame updates, so command-mode panels would
+ * never show what the CPU writes to the framebuffer. Start a new frame on
+ * every vsync and repaint the whole framebuffer after unblank.
+ */
+static void decon_fbcon_refresh(struct decon_device *decon)
+{
+	struct fb_info *fbinfo = decon->win[decon->dt.dft_win]->fbinfo;
+	struct decon_mode_info psr;
+
+	if (!IS_DECON_ON_STATE(decon))
+		return;
+
+	if (decon_fbcon_needs_pan) {
+		decon_fbcon_needs_pan = false;
+		/* give the panel time to finish its power-on sequence */
+		usleep_range(200000, 201000);
+		decon_pan_display(&fbinfo->var, fbinfo);
+	}
+
+	decon_to_psr_info(decon, &psr);
+	decon_reg_start(decon->id, &psr);
+}
+#endif
+
 static int decon_vsync_thread(void *data)
 {
 	struct decon_device *decon = data;
@@ -432,6 +460,9 @@ static int decon_vsync_thread(void *data)
 			if (decon->vsync.active)
 #endif
 				sysfs_notify(&decon->dev->kobj, NULL, "vsync");
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+			decon_fbcon_refresh(decon);
+#endif
 		}
 	}
 
@@ -1186,8 +1217,11 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 	if ((!IS_DECON_HIBER_STATE(decon) && IS_DECON_OFF_STATE(decon)) ||
 			decon->state == DECON_STATE_INIT) {
+		/* fbcon pans while blanked all the time, don't spam the log */
+#if !defined(CONFIG_EXYNOS_DPU30_FBCON)
 		decon_warn("%s: decon%d state(%d), UNBLANK missed\n",
 				__func__, decon->id, decon->state);
+#endif
 		return 0;
 	}
 
@@ -1203,7 +1237,12 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		break;
 	case 24:
 	case 32:
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+		/* matches the bitfields set in decon_check_var() */
+		config.format = DECON_PIXEL_FORMAT_ARGB_8888;
+#else
 		config.format = DECON_PIXEL_FORMAT_RGBA_8888; /* DECON_PIXEL_FORMAT_BGRA_8888 */
+#endif
 		break;
 	default:
 		decon_err("%s: Not supported bpp %d\n", __func__,

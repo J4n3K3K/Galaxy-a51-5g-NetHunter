@@ -147,6 +147,23 @@ config EXYNOS_HDR_TUNE
         depends on EXYNOS_DPU30
         default n
 
+config EXYNOS_DPU30_FBCON
+	bool "Support plain fbdev/fbcon clients (non-Android userspace)"
+	depends on EXYNOS_DPU30 && !EXYNOS_HIBERNATION
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	default n
+	help
+	  Make /dev/fb0 usable without Android's HWC, e.g. for fbcon or
+	  a GNU/Linux userspace booted from the recovery partition.
+	  The framebuffer stays mapped in the kernel, decon0 is unblanked
+	  at boot and a new frame is started on every vsync so CPU writes
+	  to the framebuffer reach command-mode panels.
+
+	  Ported from map220v's Galaxy A51 (dpu20) Linux patches.
+	  Say N for Android builds.
+
 endif
 
 config EXYNOS_DECON_DQE

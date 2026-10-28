@@ -1238,6 +1238,11 @@ static int decon_blank(int blank_mode, struct fb_info *info)
 		if (decon->esd.thread)
 			wake_up_process(decon->esd.thread);
 #endif
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+		/* repaint fb contents once the panel is back on */
+		decon_fbcon_needs_pan = true;
+		decon_set_vsync_int(decon->win[decon->dt.dft_win]->fbinfo, true);
+#endif
 		break;
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
@@ -3870,6 +3875,7 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 	return ret;
 }
 
+#if !defined(CONFIG_EXYNOS_DPU30_FBCON)
 static ssize_t decon_fb_read(struct fb_info *info, char __user *buf,
 		size_t count, loff_t *ppos)
 {
@@ -3881,11 +3887,17 @@ static ssize_t decon_fb_write(struct fb_info *info, const char __user *buf,
 {
 	return 0;
 }
+#endif
 
 int decon_release(struct fb_info *info, int user)
 {
 	struct decon_win *win = info->par;
 	struct decon_device *decon = win->decon;
+
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+	/* keep the display on when the last fb client exits */
+	return 0;
+#endif
 
 	decon_info("%s + : %d\n", __func__, decon->id);
 
@@ -3931,12 +3943,18 @@ static struct fb_ops decon_fb_ops = {
 	.fb_blank	= decon_blank,
 	.fb_setcolreg	= decon_setcolreg,
 	.fb_fillrect    = cfb_fillrect,
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+	.fb_copyarea	= cfb_copyarea,
+	.fb_imageblit	= cfb_imageblit,
+#endif
 #ifdef CONFIG_COMPAT
 	.fb_compat_ioctl = decon_compat_ioctl,
 #endif
 	.fb_ioctl	= decon_ioctl,
+#if !defined(CONFIG_EXYNOS_DPU30_FBCON)
 	.fb_read	= decon_fb_read,
 	.fb_write	= decon_fb_write,
+#endif
 	.fb_pan_display	= decon_pan_display,
 	.fb_mmap	= decon_mmap,
 	.fb_release	= decon_release,
@@ -4167,9 +4185,12 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 
 	fbi->screen_base = vaddr;
 
+	/* fbcon and fb_read/fb_write need a kernel mapping, keep it */
+#if !defined(CONFIG_EXYNOS_DPU30_FBCON)
 	dma_buf_vunmap(buf, vaddr);
 
 	fbi->screen_base = NULL;
+#endif
 
 	win->dma_buf_data[1].fence = NULL;
 	win->dma_buf_data[2].fence = NULL;
@@ -4345,6 +4366,10 @@ static int decon_acquire_window(struct decon_device *decon, int idx)
 	}
 
 	fbinfo->fix.type	= FB_TYPE_PACKED_PIXELS;
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+	/* decon_set_par() is skipped in INIT state, so set it here */
+	fbinfo->fix.visual	= FB_VISUAL_TRUECOLOR;
+#endif
 	fbinfo->fix.accel	= FB_ACCEL_NONE;
 	fbinfo->var.activate	= FB_ACTIVATE_NOW;
 	fbinfo->var.vmode	= FB_VMODE_NONINTERLACED;
@@ -4726,7 +4751,12 @@ static int decon_initial_display(struct decon_device *decon, bool is_colormap)
 	set_bit(dpp_id, &decon->prev_used_dpp);
 	memset(&config, 0, sizeof(struct decon_win_config));
 	config.dpp_parm.addr[0] = fbinfo->fix.smem_start;
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+	/* matches the bitfields set in decon_check_var() */
+	config.format = DECON_PIXEL_FORMAT_ARGB_8888;
+#else
 	config.format = DECON_PIXEL_FORMAT_BGRA_8888;
+#endif
 	config.src.w = fbinfo->var.xres;
 	config.src.h = fbinfo->var.yres;
 	config.src.f_w = fbinfo->var.xres;
@@ -4786,6 +4816,11 @@ decon_init_done:
 #if defined(CONFIG_EXYNOS_READ_ESD_SOLUTION)
 	if (decon->dt.out_type == DECON_OUT_DSI)
 		decon->esd.need_check = true;
+#endif
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+	/* no HWC will unblank decon0 for us */
+	if (decon->id == 0)
+		decon_blank(FB_BLANK_UNBLANK, fbinfo);
 #endif
 	return 0;
 }

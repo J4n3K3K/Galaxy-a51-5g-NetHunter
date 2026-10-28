@@ -1488,6 +1488,10 @@ void dpu_set_freq_hop(struct decon_device *decon, struct decon_reg_data *regs, b
 int decon_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
 int decon_set_par(struct fb_info *info);
 int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
+#if defined(CONFIG_EXYNOS_DPU30_FBCON)
+int decon_set_vsync_int(struct fb_info *info, bool active);
+extern bool decon_fbcon_needs_pan;
+#endif
 int decon_setcolreg(unsigned regno,
 			    unsigned red, unsigned green, unsigned blue,
 			    unsigned transp, struct fb_info *info);
