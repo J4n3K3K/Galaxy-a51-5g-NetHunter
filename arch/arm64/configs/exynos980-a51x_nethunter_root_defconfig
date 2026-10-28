@@ -6524,82 +6524,63 @@ CONFIG_ARCH_HAS_DEVMEM_IS_ALLOWED=y
 CONFIG_DEBUG_SNAPSHOT=y
 CONFIG_DEBUG_SNAPSHOT_USER_MODE=y
 CONFIG_DEBUG_SNAPSHOT_CALLSTACK=4
-# =====================================================================
-# Kali NetHunter kernel options  --  SM-A516B (Galaxy A51 5G, exynos9630)
-# Appended to exynos980-a51x_defconfig; later lines override earlier ones.
-# =====================================================================
 
-# --- Build identity -------------------------------------------------
+# =====================================================================
+# Kali NetHunter options  --  SM-A516B (Galaxy A51 5G, exynos9630)
+# VERIFIED booting on A516BXXS9FXE3 with clang-r365631c (9.0.8) + GNU ld.
+# USB Wi-Fi drivers are MODULES (=m): built-in (=y) panics at early boot
+# on this device; as modules they load on demand when an adapter is
+# plugged in (the standard NetHunter approach).
+# =====================================================================
 CONFIG_LOCALVERSION="-NetHunter-J4n3K"
 # CONFIG_LOCALVERSION_AUTO is not set
 
-# --- 802.11 soft-MAC stack (needed for external injection adapters) --
+# --- 802.11 soft-MAC stack (for external injection adapters) --------
 CONFIG_MAC80211=y
 CONFIG_MAC80211_RC_MINSTREL=y
 CONFIG_MAC80211_RC_MINSTREL_HT=y
 CONFIG_MAC80211_RC_DEFAULT_MINSTREL=y
 CONFIG_MAC80211_LEDS=y
 CONFIG_MAC80211_MESH=y
-
-# RFKILL (required/used by cfg80211 + many USB WLAN adapters)
 CONFIG_RFKILL=y
 CONFIG_RFKILL_INPUT=y
 CONFIG_RFKILL_LEDS=y
-
-# Allow user space to pick regulatory domain freely for injection
 CONFIG_CFG80211_WEXT=y
 
-# --- USB Wi-Fi adapters with monitor-mode / packet-injection -------
-# Atheros AR9271 / AR7010 (ath9k_htc)  -- TP-Link TL-WN722N v1, etc.
-CONFIG_ATH9K=y
-CONFIG_ATH9K_HTC=y
-CONFIG_ATH9K_HTC_DEBUGFS=y
-# Atheros AR9170 USB (carl9170)
-CONFIG_CARL9170=y
-
-# Ralink RT2500 / RT2800 USB (rt2x00)  -- RT3070/RT5370 (#1 cheap adapters)
-CONFIG_RT2X00=y
-CONFIG_RT2500USB=y
-CONFIG_RT2800USB=y
+# --- USB Wi-Fi adapters (MODULES) with monitor/injection -----------
+CONFIG_ATH9K=m
+CONFIG_ATH9K_HTC=m
+CONFIG_CARL9170=m
+CONFIG_RT2X00=m
+CONFIG_RT2800USB=m
 CONFIG_RT2800USB_RT33XX=y
 CONFIG_RT2800USB_RT35XX=y
 CONFIG_RT2800USB_RT3573=y
 CONFIG_RT2800USB_RT53XX=y
 CONFIG_RT2800USB_RT55XX=y
 CONFIG_RT2800USB_UNKNOWN=y
-
-# Realtek USB (rtl8xxxu)  -- RTL8188/8192/8723 USB
-CONFIG_RTL8XXXU=y
+CONFIG_RT2500USB=m
+CONFIG_RTL8187=m
+CONFIG_RTL8XXXU=m
 CONFIG_RTL8XXXU_UNTESTED=y
-# Realtek RTL8187  -- Alfa AWUS036H
-CONFIG_RTL8187=y
-
-# ZyDAS ZD1211 USB
-CONFIG_ZD1211RW=y
-
-# Mediatek MT7601U
-CONFIG_MT7601U=y
-
-# Prism54 USB (p54usb)
-CONFIG_P54_COMMON=y
-CONFIG_P54_USB=y
+CONFIG_ZD1211RW=m
+CONFIG_MT7601U=m
+CONFIG_P54_COMMON=m
+CONFIG_P54_USB=m
 
 # --- USB gadget functions for NetHunter attacks --------------------
-# HID keyboard gadget  -- "BadUSB" / HID keyboard attacks
 CONFIG_USB_CONFIGFS_F_HID=y
-# Mass-storage gadget  -- DriveDroid / USB-CD-ROM emulation
 CONFIG_USB_CONFIGFS_MASS_STORAGE=y
 
-# --- Drop built-in NPU firmware blob (not shipped in OSRC source; the
-#     NPU driver loads it from /vendor/firmware at runtime instead) ------
+# --- Drop built-in device firmware blobs not shipped in the OSRC ----
 CONFIG_EXTRA_FIRMWARE=""
 
 # =====================================================================
-# Root (Magisk) variant v2 -- Exynos-safe
-# Keep UH + UH_RKP enabled so the bootloader's EL2 micro-hypervisor
-# handoff succeeds and the kernel boots. Disable ONLY the Kernel Data
-# Protection for creds/namespace (what blocks changing creds to root),
-# plus DEFEX and the LKM block.
+# Root (Magisk) variant  --  Exynos-safe
+# Keep UH + UH_RKP (the bootloader hands off to an EL2 hypervisor; a
+# kernel with UH/RKP disabled panics before console). Disable only the
+# KDP credential/namespace protection that blocks root, plus DEFEX and
+# the LKM block.
 # =====================================================================
 CONFIG_UH=y
 CONFIG_UH_RKP=y

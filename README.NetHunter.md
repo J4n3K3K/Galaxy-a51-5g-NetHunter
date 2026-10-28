@@ -1,102 +1,79 @@
 # NetHunter kernel — SM-A516B (Galaxy A51 5G, exynos9630)
 
-Kali NetHunter-ready kernel configuration for the Samsung Galaxy A51 5G
-(`SM-A516B`, SoC **exynos9630 / "exynos980"**), based on the stock
-Android 13 / One UI 5.1 OSRC source (`4.19.87`).
+Kali NetHunter kernel for the Samsung Galaxy A51 5G (`SM-A516B`, SoC
+**exynos9630 / "exynos980"**), built from the stock Android 13 / One UI 5.1
+OSRC source (`4.19.87`).
 
-Target firmware this was prepared against (from the device screenshot):
-`A516BXXS9FXE3` — Android 13, One UI 5.1, kernel 4.19.87.
+**Verified booting** on firmware `A516BXXS9FXE3`, kernel string
+`4.19.87-NetHunter-J4n3K`.
 
-## What was added
+## Two defconfigs
 
-Two defconfigs are provided:
-
-| defconfig | self-protection | Use |
+| defconfig | self-protection | use |
 |-----------|-----------------|-----|
-| `exynos980-a51x_nethunter_defconfig` | stock (RKP+KDP+DEFEX on) | stock-faithful; boots like stock but Magisk/`su` is likely blocked |
+| `exynos980-a51x_nethunter_defconfig` | stock (RKP+KDP+DEFEX on) | boots like stock; Magisk `su` likely blocked by KDP |
 | `exynos980-a51x_nethunter_root_defconfig` | RKP **on**, KDP+DEFEX **off** | for Magisk root on an unlocked bootloader |
 
-Both = the stock `exynos980-a51x_defconfig` plus the NetHunter options below.
+Both add, on top of the stock `exynos980-a51x_defconfig`:
 
-The `_root_` variant **keeps `UH`/`UH_RKP` enabled** — on this Exynos SoC
-the bootloader hands off to an EL2 micro-hypervisor and the kernel must do
-the RKP handoff or it panics before console (a kernel with `UH` fully
-disabled does **not** boot here). It disables only what actually blocks
-root: `KDP_CRED`/`KDP_NS`/`KDP_DMAP` (hypervisor-enforced credential
-protection), `SECURITY_DEFEX` and `UH_LKM_BLOCK`. `PROCA`, `FIVE` and
-`UHID` stay enabled in both. The base config was verified 1:1 against the
-device's own `/proc/config.gz` (A516BXXS9FXE3).
+- **mac80211 + RFKILL** — the soft-MAC stack external injection adapters
+  need (the internal SLSI chip can't do monitor mode / injection).
+- **USB Wi-Fi drivers as MODULES (`=m`)** — ath9k_htc, carl9170,
+  rt2800usb (+rt33/35/3573/53/55xx), rt2500usb, rtl8187, rtl8xxxu,
+  zd1211rw, mt7601u, p54usb. ⚠️ Built-in (`=y`) **panics at early boot**
+  on this device; as modules they load on demand when an adapter is
+  plugged in (and this is the normal NetHunter approach anyway).
+- **USB gadget functions** `CONFIG_USB_CONFIGFS_F_HID` (BadUSB / HID) and
+  `CONFIG_USB_CONFIGFS_MASS_STORAGE` (DriveDroid).
+- `CONFIG_EXTRA_FIRMWARE=""` (the NPU/sensorhub firmware blobs are absent
+  from the OSRC; they load from `/vendor/firmware` at runtime).
 
-### 802.11 soft-MAC stack (for external injection adapters)
-The internal Samsung/SLSI Wi-Fi chip does **not** support monitor mode or
-packet injection, so NetHunter relies on an external USB adapter. That needs
-the `mac80211` stack, which the stock kernel ships disabled:
+The `_root_` variant additionally keeps `UH`/`UH_RKP` enabled (the
+bootloader hands off to an EL2 micro-hypervisor; a kernel with UH/RKP
+disabled panics before console) and disables only `KDP_CRED`/`KDP_NS`/
+`KDP_DMAP` (the hypervisor-enforced credential protection that blocks
+root), `SECURITY_DEFEX` and `UH_LKM_BLOCK`. `PROCA`, `FIVE` and `UHID`
+stay enabled in both.
 
-- `CONFIG_MAC80211=y` (+ minstrel rate control, mesh, LEDs)
-- `CONFIG_RFKILL=y`
-
-### USB Wi-Fi drivers with monitor-mode / injection (built-in)
-| Driver | Chips / common adapters |
-|--------|-------------------------|
-| `ATH9K_HTC` | Atheros AR9271 / AR7010 — TP-Link TL-WN722N v1, Alfa AWUS036NHA |
-| `CARL9170`  | Atheros AR9170 USB |
-| `RT2800USB` (+ RT33xx/35xx/3573/53xx/55xx/unknown) | Ralink RT3070 / RT5370 |
-| `RT2500USB` | Ralink RT2500 USB |
-| `RTL8187`   | Realtek RTL8187 — Alfa AWUS036H |
-| `RTL8XXXU` (+ untested IDs) | Realtek RTL8188/8192/8723 USB |
-| `ZD1211RW`  | ZyDAS ZD1211 |
-| `MT7601U`   | MediaTek MT7601U |
-| `P54_USB`   | Prism54 USB |
-
-(All the wired-USB NIC drivers — AX88179, RTL8152, etc. — were already on.)
-
-### USB gadget functions
-- `CONFIG_USB_CONFIGFS_F_HID=y` — HID keyboard gadget ("BadUSB" / HID attacks)
-- `CONFIG_USB_CONFIGFS_MASS_STORAGE=y` — DriveDroid / USB CD-ROM emulation
-
-### Already present in the stock config (verified, no change needed)
-`CONFIG_MODULES=y` (unsigned — out-of-tree drivers load), netfilter NAT /
-`TPROXY` / `REDIRECT` / `NETMAP` / `MASQUERADE`, all `WLAN_VENDOR_*` switches,
-`CONFIG_CFG80211` + WEXT, `CONFIG_UHID`.
-
-> Out-of-tree Realtek drivers (8812au/8821au/88x2bu, 8188eu, 8821cu) that
-> ship with NetHunter are **not** in a 4.19 tree. Build them as external
-> modules against this kernel, or add them under `drivers/net/wireless/`
-> and extend the defconfig.
+The base config was verified 1:1 against the device's own
+`/proc/config.gz` — the only deltas are the intentional changes above.
 
 ## Building
 
-A cross toolchain is required. This was built and verified with
-**Proton Clang 13.0.0** (LLVM) plus its bundled aarch64/arm GNU binutils,
-on an Ubuntu 24.04 (glibc 2.39) host:
+Two toolchains are required, and **both matter** (see notes):
 
 ```bash
-git clone --depth=1 https://github.com/kdrag0n/proton-clang.git ~/proton-clang
-sudo apt-get install -y flex bison bc libssl-dev libelf-dev build-essential
+# 1. The exact AOSP clang Samsung shipped this kernel with (clang 9.0.8)
+git clone --depth=1 \
+  https://github.com/Cyborg2017/prebuilts_clang_host_linux-x86_clang-r365631c.git \
+  ~/clang-r365631c
+# 2. GNU aarch64 binutils (external assembler + GNU ld)
+sudo apt install -y binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu \
+  flex bison bc libssl-dev libelf-dev build-essential
+
 cd Galaxy-a51-5g-NetHunter
-TC=~/proton-clang ./build_nethunter.sh                 # stock-RKP variant
-# root variant (RKP/KDP/DEFEX off):
-TC=~/proton-clang DEFCONFIG=exynos980-a51x_nethunter_root_defconfig ./build_nethunter.sh
+CLANG=~/clang-r365631c ./build_nethunter.sh                 # stock-RKP
+CLANG=~/clang-r365631c DEFCONFIG=exynos980-a51x_nethunter_root_defconfig \
+  ./build_nethunter.sh                                      # root
 ```
 
-Output: `arch/arm64/boot/Image` (~33 MB) and
-`arch/arm64/boot/dts/exynos/exynos9630.dtb`.
+Output: `arch/arm64/boot/Image`, `exynos9630.dtb`, and the Wi-Fi `.ko`
+modules under `drivers/net/wireless/`.
 
-The build script documents the exact `make` flags. The non-obvious ones,
-all needed because Proton Clang 13 is much newer than the clang this 4.19
-tree was written for:
+### Why these exact tools (hard-won)
 
-- **Host tools with the system GCC** (`HOSTCC=gcc`) so `fixdep` links
-  against the RELR-capable system `ld` (Proton's old GNU `ld` can't read
-  glibc 2.39's `.relr.dyn`).
-- **`as`/`ld` symlinks** in the toolchain pointing at the aarch64 binutils
-  (clang's `--prefix` otherwise picks the x86 `as`/`ld`, which reject
-  `-EL` / `aarch64linux`).
-- **`LD=aarch64-linux-gnu-ld`** for the final link: Proton's `ld.lld` 13
-  refuses the backward location-counter move Samsung's RKP `.rkp_ro`
-  section needs; GNU ld handles it.
-- **`KCFLAGS=-Wno-error`** (Samsung hard-codes bare `-Werror`) and
-  **`HOSTCFLAGS=-fcommon`** (4.19 `dtc` vs modern GCC `-fno-common`).
+- **clang 9.0.8 (r365631c), not newer.** Proton clang 13 compiles the
+  tree but the resulting kernel did **not boot** on this device. clang 9
+  matches what Samsung used (`CONFIG_CLANG_VERSION`).
+- **GNU aarch64 ld for the final link, not ld.lld.** Both ld.lld 9 and 13
+  refuse the Samsung RKP `.rkp_ro` section with "unable to move location
+  counter backward" (`swapper_pg_dir` is sized from `_end`). GNU ld's
+  multi-pass resolution links it.
+- **System GCC for host tools** (`HOSTCC=gcc`): Proton's old GNU ld can't
+  read modern glibc's `.relr.dyn` when linking host programs like fixdep.
+- **`KCFLAGS=-Wno-error`** (Samsung hard-codes bare `-Werror`),
+  **`HOSTCFLAGS=-fcommon`** (4.19 `dtc` vs modern GCC), **`LOCALVERSION=`**
+  (suppress the git-hash suffix → stable vermagic for modules).
 
 ### OSRC source fixes carried in this branch
 
@@ -104,33 +81,49 @@ Samsung's OSRC tarball is incomplete; the build needs these, all included:
 
 - Executable bit restored on `scripts/**/*.sh`, `*.py`, `*.pl` and
   `arch/arm64/kernel/vdso/gen_vdso_offsets.sh` (the dump stripped them,
-  which silently produced an empty `vdso-offsets.h`).
+  silently producing an empty `vdso-offsets.h`).
 - Re-created missing uapi netfilter headers: `xt_mark.h`, `xt_dscp.h`,
-  `xt_rateest.h`, `ipt_ttl.h`, `ip6t_hl.h` (canonical mainline content).
+  `xt_rateest.h`, `ipt_ttl.h`, `ip6t_hl.h`.
 - Relocated two camera headers to their canonical include paths:
-  `dt-bindings/camera/exynos_is_dt.h` and `linux/videodev2_exynos_camera.h`.
-- `firmware/Makefile`: `fwdir` falls back to `firmware/` so the touchscreen
-  blob (`tsp_melfas/mss100_a51x.fw`) auto-generates from its shipped
-  `.ihex`; the `sensorhub` blobs (no source in the OSRC) are dropped from
-  the built-in list and load from `/vendor/firmware` at runtime. The NPU
-  blob is likewise not built in (`CONFIG_EXTRA_FIRMWARE=""`).
-- `lib/string.c`: added `stpcpy()` (newer clang lowers some `strcpy()`
-  uses to `stpcpy`, which 4.19 otherwise lacks → link error).
+  `dt-bindings/camera/exynos_is_dt.h`, `linux/videodev2_exynos_camera.h`.
+- `firmware/Makefile`: `fwdir` falls back to `firmware/` so the melfas
+  touchscreen blob auto-generates from its shipped `.ihex`; absent
+  sensorhub blobs dropped from the built-in firmware list.
+- `lib/string.c`: added `stpcpy()` (harmless; some clang lowers `strcpy`
+  to `stpcpy`).
+- Root `.gitignore` (the OSRC dump shipped without one).
 
-## Packaging & flashing (done off-device, outside this repo)
+## Flashing
 
-1. Take your stock `boot.img` for `A516BXXS9FXE3`, unpack it
-   (e.g. AIK — Android Image Kitchen), replace the kernel with the new
-   `Image`, repack.
-2. Flash the repacked `boot.img` (Odin AP slot, or `fastboot`/`heimdall`).
-3. Install the Kali NetHunter app + chroot on top.
+This device **does not enforce AVB** on an unlocked bootloader, but it
+**does** matter *how* the boot image is written. Take your stock
+`boot.img`, replace only the kernel (keep the stock ramdisk + dtb), drop
+the AVB footer, and keep the `SEANDROIDENFORCE` tag; zero-fill to the full
+partition size so a TWRP `dd` overwrites any stale footer. Then:
 
-**Prerequisites on the device:** unlocked bootloader (OEM unlocking),
-which trips the Knox e-fuse (0x1), and root (Magisk). For working Magisk
-root use the **`_root_` variant** (RKP on, KDP+DEFEX off) — the stock-RKP
-variant will boot but `su` is likely blocked by `KDP_CRED`/`DEFEX`. Keep
-the stock-RKP build as a fallback.
+- **Odin** (recommended): put the boot image in a `.tar` and flash it in
+  the **AP** slot (Download Mode).
+- **TWRP**: Install Image → select the `.img` → **Boot** partition.
 
-> Note: an earlier revision of the root variant disabled `UH`/`UH_RKP`
-> entirely and did **not** boot on this Exynos SoC (broken EL2
-> hypervisor handoff). The working recipe keeps RKP on and only drops KDP.
+Always keep a copy of the **stock `boot.img`** to recover via Odin.
+
+### Getting root (Magisk)
+
+The kernel only *enables* root (KDP off); it ships the stock ramdisk, so
+Magisk is not installed yet. Patch the root `boot.img` with the Magisk app
+("Install → Select and Patch a File"), then flash the `magisk_patched`
+image. `su` then works because KDP is disabled.
+
+### Wi-Fi adapter modules
+
+The `.ko` modules match the kernel's vermagic
+(`4.19.87-NetHunter-J4n3K`). Push them to the device and
+`insmod`/`modprobe` the one for your adapter (e.g. `rt2800usb`,
+`ath9k_htc`); firmware loads from `/vendor/firmware`. The NetHunter app
+can also manage loading them.
+
+## Prerequisites
+
+Unlocked bootloader (OEM unlocking, trips Knox 0x1) and Magisk. The 5 GHz
+internal Wi-Fi is Samsung/SLSI (no monitor/injection) — NetHunter wireless
+attacks require an external USB adapter from the list above.

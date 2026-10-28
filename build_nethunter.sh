@@ -2,75 +2,80 @@
 # =====================================================================
 # Build the NetHunter kernel for SM-A516B (Galaxy A51 5G, exynos9630)
 #
-# Toolchain: Proton Clang (LLVM 13) for the ARM target + its bundled
-# aarch64/arm GNU binutils for assembling and the final vmlinux link.
-# Host tools are built with the system GCC.
+# VERIFIED to produce a booting kernel on firmware A516BXXS9FXE3 with:
+#   * clang-r365631c (9.0.8)  -- the exact AOSP clang Samsung shipped
+#     this kernel with (the device's /proc/config.gz reports
+#     CONFIG_CLANG_VERSION=9000x). Newer clang (e.g. 13) compiles but
+#     the result did not boot on this device.
+#   * GNU aarch64 ld for the final vmlinux link. ld.lld (both 9 and 13)
+#     refuses the Samsung RKP ".rkp_ro" section ("unable to move
+#     location counter backward"), so GNU ld is required here.
+#   * The system GCC for host tools (its ld reads modern glibc's RELR).
 #
-# Verified to build arch/arm64/boot/Image with Proton Clang 13.0.0 on
-# an Ubuntu 24.04 (glibc 2.39) host. Other clang versions may need
-# different work-arounds.
+# The USB Wi-Fi drivers are built as MODULES (=m): built-in (=y) panics
+# at early boot on this device; as modules they load on demand.
 # =====================================================================
 set -e
 
-# ---- Point TC at your Proton/AOSP clang toolchain --------------------
-#   git clone --depth=1 https://github.com/kdrag0n/proton-clang.git ~/proton-clang
-TC="${TC:-$HOME/proton-clang}"
-[ -x "$TC/bin/clang" ] || { echo "ERROR: clang not found in $TC/bin"; exit 1; }
+# ---- Toolchains -----------------------------------------------------
+# clang 9.0.8 (r365631c):
+#   git clone --depth=1 https://github.com/Cyborg2017/prebuilts_clang_host_linux-x86_clang-r365631c.git ~/clang-r365631c
+CLANG="${CLANG:-$HOME/clang-r365631c}"
+# GNU aarch64 binutils (provides the external assembler + GNU ld):
+#   Debian/Ubuntu:  sudo apt install binutils-aarch64-linux-gnu
+#   or any aarch64-linux-gnu-* cross toolchain (e.g. Proton clang's).
+BINUTILS_DIR="${BINUTILS_DIR:-/usr/bin}"
 
-# Which defconfig to build. Default = stock-faithful (RKP on).
-# Root variant (RKP/KDP/DEFEX off):
+[ -x "$CLANG/bin/clang" ] || { echo "ERROR: clang not found in $CLANG/bin"; exit 1; }
+command -v "$BINUTILS_DIR/aarch64-linux-gnu-ld" >/dev/null 2>&1 \
+  || { echo "ERROR: aarch64-linux-gnu-ld not found in $BINUTILS_DIR"; exit 1; }
+
+# Which defconfig. Default = stock-RKP NetHunter. Root (Magisk) variant:
 #   DEFCONFIG=exynos980-a51x_nethunter_root_defconfig ./build_nethunter.sh
 DEFCONFIG="${DEFCONFIG:-exynos980-a51x_nethunter_defconfig}"
 
 # ---------------------------------------------------------------------
-# Why the two symlinks below:
-# Clang is driven with --prefix=<toolchain>/bin/, so with -no-integrated-as
-# it invokes "<toolchain>/bin/as" and (for the VDSO) "<toolchain>/bin/ld".
-# In Proton those bare names are the *x86* binutils, which reject the
-# aarch64 "-EL" flag / "aarch64linux" emulation. Repoint them at the
-# cross tools. (Only clang's cross asm/link stage uses them; host links
-# go through the system GCC/ld.)
+# clang is driven with --prefix=<binutils>/ and -no-integrated-as, so it
+# invokes "<binutils>/as" and "<binutils>/ld". Those bare names are the
+# x86 host tools, which reject aarch64 -- so point them at the aarch64
+# binutils via a private symlink dir (never touch the system /usr/bin).
 # ---------------------------------------------------------------------
-ln -sf aarch64-linux-gnu-as "$TC/bin/as"
-ln -sf aarch64-linux-gnu-ld "$TC/bin/ld"
+GNUPREFIX="$(pwd)/.ak_binutils"
+mkdir -p "$GNUPREFIX/bin"
+for t in $(cd "$BINUTILS_DIR" && ls aarch64-linux-gnu-* 2>/dev/null); do
+  ln -sf "$BINUTILS_DIR/$t" "$GNUPREFIX/bin/$t"
+done
+ln -sf "$BINUTILS_DIR/aarch64-linux-gnu-as" "$GNUPREFIX/bin/as"
+ln -sf "$BINUTILS_DIR/aarch64-linux-gnu-ld" "$GNUPREFIX/bin/ld"
 
-# System binutils first so host-tool (fixdep, dtc, …) links use the
-# RELR-capable system ld; Proton last for the aarch64-linux-gnu-* tools.
-export PATH="/usr/bin:/bin:$TC/bin"
+export PATH="/usr/bin:/bin:$GNUPREFIX/bin"
 export ARCH=arm64
-export PLATFORM_VERSION=13           # One UI 5.1 / Android 13 (A516BXXS9FXE3)
+export PLATFORM_VERSION=13
 export ANDROID_MAJOR_VERSION=t
 
 MAKE_ARGS=(
   ARCH=arm64
-  CC="$TC/bin/clang"
+  CC="$CLANG/bin/clang"
   HOSTCC=gcc HOSTCXX=g++
-  # ld.lld (Proton 13) refuses the backward location-counter move the
-  # Samsung RKP .rkp_ro section needs, so link vmlinux with GNU ld.
-  LD="$TC/bin/aarch64-linux-gnu-ld"
-  AR="$TC/bin/llvm-ar" NM="$TC/bin/llvm-nm"
-  OBJCOPY="$TC/bin/llvm-objcopy" OBJDUMP="$TC/bin/llvm-objdump"
-  STRIP="$TC/bin/llvm-strip"
+  LD="$GNUPREFIX/bin/aarch64-linux-gnu-ld"
+  AR="$CLANG/bin/llvm-ar" NM="$CLANG/bin/llvm-nm"
+  OBJCOPY="$CLANG/bin/llvm-objcopy" OBJDUMP="$CLANG/bin/llvm-objdump"
+  STRIP="$CLANG/bin/llvm-strip"
   CLANG_TRIPLE=aarch64-linux-gnu-
   CROSS_COMPILE=aarch64-linux-gnu-
   CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-  # Samsung hard-codes bare -Werror; the newer clang emits warnings 4.19
-  # never anticipated, so demote them. -fcommon fixes the 4.19 host dtc
-  # build under modern GCC's -fno-common default.
   KCFLAGS=-Wno-error
   HOSTCFLAGS=-fcommon
-  # Set (empty) so scripts/setlocalversion does not append a "+" when
-  # building from a git tree. UTS_RELEASE then comes purely from
-  # CONFIG_LOCALVERSION -> a stable "4.19.87-NetHunter-J4n3K" vermagic,
-  # identical whether built from git or a tarball.
   LOCALVERSION=
 )
 
-echo ">> Building $DEFCONFIG"
+echo ">> Building $DEFCONFIG with $("$CLANG/bin/clang" --version | head -1)"
 make "${MAKE_ARGS[@]}" "$DEFCONFIG"
-make "${MAKE_ARGS[@]}" -j"$(nproc)" Image dtbs
+make "${MAKE_ARGS[@]}" -j"$(nproc)" Image dtbs modules
 
 echo
 echo "=== Build artifacts ==="
 ls -lh arch/arm64/boot/Image
 ls -lh arch/arm64/boot/dts/exynos/exynos9630.dtb
+echo "Wi-Fi modules (.ko):"
+find drivers/net/wireless drivers/misc/eeprom -name '*.ko'
