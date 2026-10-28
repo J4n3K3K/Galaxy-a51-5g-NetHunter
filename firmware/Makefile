@@ -21,6 +21,16 @@ fw-external-$(CONFIG_SENSORS_SSP_A41SX) += sensorhub/shub_neus_a41sx.bin
 
 fw-shipped-$(CONFIG_FIVE_TEE_DRIVER) += five/ffffffff000000000000000000000072.tlbin
 
+# The open source release ships without some proprietary blobs. Skip the
+# missing ones instead of failing the build; their drivers fall back to
+# request_firmware() from /lib/firmware (or /vendor/firmware on Android).
+fw-missing := $(foreach f,$(fw-external-y),$(if $(wildcard $(fwabs)/$(f) \
+		$(srctree)/$(src)/$(f).ihex),,$(f)))
+ifneq ($(fw-missing),)
+$(warning firmware: not embedding missing blobs: $(fw-missing))
+fw-external-y := $(filter-out $(fw-missing),$(fw-external-y))
+endif
+
 quiet_cmd_ihex  = IHEX    $@
       cmd_ihex  = $(OBJCOPY) -Iihex -Obinary $< $@
 
