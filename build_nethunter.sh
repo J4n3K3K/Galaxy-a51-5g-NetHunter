@@ -71,11 +71,9 @@ MAKE_ARGS=(
 
 echo ">> Building $DEFCONFIG with $("$CLANG/bin/clang" --version | head -1)"
 make "${MAKE_ARGS[@]}" "$DEFCONFIG"
-make "${MAKE_ARGS[@]}" -j"$(nproc)" Image dtbs modules
+make "${MAKE_ARGS[@]}" -j"$(nproc)" Image dtbs
 
 echo
 echo "=== Build artifacts ==="
 ls -lh arch/arm64/boot/Image
 ls -lh arch/arm64/boot/dts/exynos/exynos9630.dtb
-echo "Wi-Fi modules (.ko):"
-find drivers/net/wireless drivers/misc/eeprom -name '*.ko'

@@ -18,11 +18,14 @@ Both add, on top of the stock `exynos980-a51x_defconfig`:
 
 - **mac80211 + RFKILL** — the soft-MAC stack external injection adapters
   need (the internal SLSI chip can't do monitor mode / injection).
-- **USB Wi-Fi drivers as MODULES (`=m`)** — ath9k_htc, carl9170,
-  rt2800usb (+rt33/35/3573/53/55xx), rt2500usb, rtl8187, rtl8xxxu,
-  zd1211rw, mt7601u, p54usb. ⚠️ Built-in (`=y`) **panics at early boot**
-  on this device; as modules they load on demand when an adapter is
-  plugged in (and this is the normal NetHunter approach anyway).
+- **USB Wi-Fi drivers BUILT-IN (`=y`)** — ath9k_htc, carl9170, rt2800usb
+  (+rt33/35/3573/53/55xx), rt2500usb, rtl8187, rtl8xxxu, zd1211rw,
+  mt7601u, p54usb. ⚠️ They must be `=y`, **not modules**: Samsung RKP
+  (kept on, for boot) resets the phone when a module is `insmod`'d at
+  runtime. Built-in, they are part of the RKP-approved kernel text and
+  simply bind when an adapter is plugged in — no `insmod`, no reset.
+  (Covers b/g/n adapters; the out-of-tree **rtl88xxau** AC driver —
+  8812au/8821au/8814au — is *not* in mainline 4.19 and is not included.)
 - **USB gadget functions** `CONFIG_USB_CONFIGFS_F_HID` (BadUSB / HID) and
   `CONFIG_USB_CONFIGFS_MASS_STORAGE` (DriveDroid).
 - `CONFIG_EXTRA_FIRMWARE=""` (the NPU/sensorhub firmware blobs are absent
@@ -114,13 +117,15 @@ Magisk is not installed yet. Patch the root `boot.img` with the Magisk app
 ("Install → Select and Patch a File"), then flash the `magisk_patched`
 image. `su` then works because KDP is disabled.
 
-### Wi-Fi adapter modules
+### Wi-Fi adapters
 
-The `.ko` modules match the kernel's vermagic
-(`4.19.87-NetHunter-J4n3K`). Push them to the device and
-`insmod`/`modprobe` the one for your adapter (e.g. `rt2800usb`,
-`ath9k_htc`); firmware loads from `/vendor/firmware`. The NetHunter app
-can also manage loading them.
+The drivers are built into the kernel, so **nothing to load** — plug an
+adapter in (OTG) and it binds automatically; check with `dmesg` and
+`iw dev`. Some chips need firmware in `/vendor/firmware` or
+`/lib/firmware` (ath9k_htc → `htc_9271.fw`, carl9170 → `carl9170-1.fw`,
+rt2800usb → `rt2870.bin`, …); add it there if `dmesg` reports it missing.
+Do **not** try to `insmod` a Wi-Fi module — with RKP on, that resets the
+device.
 
 ## Prerequisites
 
