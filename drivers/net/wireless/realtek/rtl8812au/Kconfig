@@ -1,0 +1,7 @@
+config 88XXAU
+	tristate "Realtek 8812AU/8811AU/8821AU/8814AU USB WiFi (rtl88xxau)"
+	depends on USB && CFG80211
+	help
+	  Out-of-tree aircrack-ng/rtl8812au driver (v5.6.4.2) for Realtek
+	  RTL8811AU/8812AU/8821AU/8814AU USB adapters (e.g. TP-Link Archer
+	  T2U V3, Alfa AWUS036ACH). Supports monitor mode and injection.

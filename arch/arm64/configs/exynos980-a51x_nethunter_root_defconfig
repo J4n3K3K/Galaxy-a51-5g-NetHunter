@@ -6602,3 +6602,7 @@ CONFIG_UH_RKP_FIMC_CHECK=y
 CONFIG_MT76_CORE=y
 CONFIG_MT76_USB=y
 CONFIG_MT76x0U=y
+
+# --- Realtek RTL88xxAU (8811au/8812au/8821au) USB AC adapters -------
+#     out-of-tree aircrack-ng/rtl8812au, built-in (TP-Link Archer T2U, Alfa ACH)
+CONFIG_88XXAU=y
