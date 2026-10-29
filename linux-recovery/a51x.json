@@ -1,0 +1,13 @@
+{
+ "kernel_addr": 268468224,
+ "ramdisk_addr": 285212672,
+ "second_addr": 0,
+ "tags_addr": 268435712,
+ "page_size": 2048,
+ "header_version": 2,
+ "os_version": 369099090,
+ "name": "",
+ "cmdline": "",
+ "dtb_addr": 268435456,
+ "trailer": "SEANDROIDENFORCE"
+}

@@ -1,0 +1,150 @@
+#!/usr/bin/ash
+# Linux-a51x-J4n3K initramfs for Galaxy A51 5G (SM-A516B/F)
+#
+# Mounts the Android userdata partition, loop-mounts <userdata>/linux.img
+# as the root filesystem and switches to it. Android stays untouched.
+#
+# Kernel command line overrides (all optional):
+#   linuximg=<path>   image relative to userdata (default: linux.img)
+#   datapart=<name>   GPT name of the data partition (default: userdata)
+#   root=<dev>        boot from a block device instead of an image
+#   break=premount|postmount   drop to a shell
+
+udevd_running=0
+mount_handler=linux_img_mount_handler
+init=/sbin/init
+rd_logmask=0
+
+. /init_functions
+
+lower() {
+    sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/'
+}
+
+# Find a partition by its GPT name, case-insensitively (Samsung uses
+# upper-case names, e.g. USERDATA).
+find_partition() {
+    local want uevent name
+    want=$(echo "$1" | lower)
+    for uevent in /sys/class/block/*/uevent; do
+        name=$(sed -n 's/^PARTNAME=//p' "$uevent" | lower)
+        if [ "$name" = "$want" ]; then
+            echo "/dev/$(sed -n 's/^DEVNAME=//p' "$uevent")"
+            return 0
+        fi
+    done
+    return 1
+}
+
+linux_img_mount_handler() {
+    local newroot=$1 part img efs
+
+    if [ -n "$root" ]; then
+        default_mount_handler "$newroot"
+        return
+    fi
+
+    part=$(find_partition "${datapart:-userdata}")
+    if [ -z "$part" ]; then
+        err "partition '${datapart:-userdata}' not found"
+        launch_interactive_shell
+        return 1
+    fi
+
+    msg ":: mounting $part on /android_data"
+    if ! mount -o rw,noatime "$part" /android_data; then
+        err "cannot mount $part"
+        launch_interactive_shell
+        return 1
+    fi
+
+    img=/android_data/${linuximg:-linux.img}
+    if [ ! -f "$img" ]; then
+        err "$img not found"
+        launch_interactive_shell
+        return 1
+    fi
+
+    msg ":: mounting $img on real root"
+    if ! mount -o loop,rw,noatime "$img" "$newroot"; then
+        err "cannot mount $img"
+        launch_interactive_shell
+        return 1
+    fi
+
+    # Keep Android's /data reachable from Linux if the rootfs wants it
+    if [ -d "$newroot/android_data" ]; then
+        mount --move /android_data "$newroot/android_data"
+    fi
+
+    # Wi-Fi/Bluetooth MAC addresses live on EFS, mount it read-only
+    efs=$(find_partition efs)
+    if [ -n "$efs" ] && [ -d "$newroot/efs" ]; then
+        mount -o ro "$efs" "$newroot/efs" || err "cannot mount EFS"
+        if [ -d "$newroot/mnt/vendor/efs" ]; then
+            mount --bind "$newroot/efs" "$newroot/mnt/vendor/efs"
+        fi
+    fi
+}
+
+mount_setup
+
+# kick the framebuffer once so the console shows up
+echo 0 > /sys/class/graphics/fb0/rotate
+
+parse_cmdline </proc/cmdline
+
+rdlogger_start
+
+for d in ${disablehooks//,/ }; do
+    [ -e "/hooks/$d" ] && chmod 644 "/hooks/$d"
+done
+
+. /config
+
+run_hookfunctions 'run_earlyhook' 'early hook' $EARLYHOOKS
+
+if [ -n "$earlymodules$MODULES" ]; then
+    modprobe -qab ${earlymodules//,/ } $MODULES
+fi
+
+run_hookfunctions 'run_hook' 'hook' $HOOKS
+
+if [ "${break}" = "y" ] || [ "${break}" = "premount" ]; then
+    echo ":: Pre-mount break requested, type 'exit' to resume operation"
+    launch_interactive_shell
+fi
+
+if [ -n "$root" ]; then
+    rootdev=$(resolve_device "$root") && root=$rootdev
+    unset rootdev
+    fsck_root
+fi
+
+"$mount_handler" /new_root
+
+run_hookfunctions 'run_latehook' 'late hook' $LATEHOOKS
+run_hookfunctions 'run_cleanuphook' 'cleanup hook' $CLEANUPHOOKS
+
+if [ "$(stat -c %D /)" = "$(stat -c %D /new_root)" ]; then
+    err "Failed to mount the real root device."
+    echo "Bailing out, you are on your own. Good luck."
+    echo
+    launch_interactive_shell --exec
+elif [ ! -x "/new_root${init}" ]; then
+    err "Root device mounted successfully, but ${init} does not exist."
+    echo "Bailing out, you are on your own. Good luck."
+    echo
+    launch_interactive_shell --exec
+fi
+
+if [ "${break}" = "postmount" ]; then
+    echo ":: Post-mount break requested, type 'exit' to resume operation"
+    launch_interactive_shell
+fi
+
+rdlogger_stop
+
+exec env -i \
+    "TERM=$TERM" \
+    /usr/bin/switch_root /new_root $init "$@"
