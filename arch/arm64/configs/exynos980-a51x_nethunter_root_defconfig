@@ -6606,3 +6606,7 @@ CONFIG_MT76x0U=y
 # --- Realtek RTL88xxAU (8811au/8812au/8821au) USB AC adapters -------
 #     out-of-tree aircrack-ng/rtl8812au, built-in (TP-Link Archer T2U, Alfa ACH)
 CONFIG_88XXAU=y
+
+# --- Realtek RTL8188EUS (0bda:8179) USB b/g/n adapters -------------
+#     out-of-tree aircrack-ng/rtl8188eus, built-in (monitor mode + injection)
+CONFIG_RTL8188EU=y

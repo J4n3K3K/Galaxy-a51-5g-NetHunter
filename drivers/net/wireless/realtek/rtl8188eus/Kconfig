@@ -1,0 +1,10 @@
+config RTL8188EU
+	tristate "Realtek 8188EUS/8188ETV USB WiFi (rtl8188eus)"
+	depends on USB && CFG80211
+	help
+	  Out-of-tree aircrack-ng/rtl8188eus driver for Realtek RTL8188EUS /
+	  RTL8188ETV USB adapters (USB ID 0bda:8179 and clones, e.g. many
+	  cheap "802.11n" dongles and TP-Link TL-WN725N v2). Supports monitor
+	  mode and packet injection, which the in-tree staging r8188eu driver
+	  does not. Build it BUILT-IN (=y): with Samsung RKP enabled, loading
+	  it as a module at runtime resets the device.
